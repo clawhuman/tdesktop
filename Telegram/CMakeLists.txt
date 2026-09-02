@@ -110,6 +110,21 @@ nice_target_sources(Telegram ${src_loc}
 PRIVATE
     ${style_files}
 
+    enterprise/enterprise_archive.cpp
+    enterprise/enterprise_archive.h
+    enterprise/enterprise_config.cpp
+    enterprise/enterprise_config.h
+    enterprise/enterprise_control.cpp
+    enterprise/enterprise_control.h
+    enterprise/enterprise_envelope.cpp
+    enterprise/enterprise_envelope.h
+    enterprise/enterprise_keychain.cpp
+    enterprise/enterprise_keychain.h
+    enterprise/enterprise_models.cpp
+    enterprise/enterprise_models.h
+    enterprise/enterprise_queue.cpp
+    enterprise/enterprise_queue.h
+
     api/api_attached_stickers.cpp
     api/api_attached_stickers.h
     api/api_authorizations.cpp
@@ -2184,6 +2199,9 @@ if (APPLE)
         media/view/media_view_metal_texture.mm
         media/streaming/media_streaming_native_frame_mac.mm
     )
+    if (INTERNAL_TELEGRAM)
+        target_link_frameworks(Telegram PRIVATE Security)
+    endif()
 else()
     nice_target_sources(Telegram ${src_loc}
     PRIVATE
@@ -2370,13 +2388,24 @@ if (build_macstore)
         COMMAND rm -rf $<TARGET_FILE_DIR:Telegram>/../Frameworks/Breakpad.framework/Resources/Inspector
     )
 else()
-    if (CMAKE_GENERATOR STREQUAL Xcode)
+    if (INTERNAL_TELEGRAM)
+        set(bundle_identifier "com.company.internaltelegram")
+        set(output_name "Internal Telegram")
+    elseif (CMAKE_GENERATOR STREQUAL Xcode)
         set(bundle_identifier "com.tdesktop.Telegram$<$<CONFIG:Debug>:Debug>")
     else()
         set(bundle_identifier "com.tdesktop.Telegram")
     endif()
     set(bundle_entitlements "Telegram.entitlements")
-    set(output_name "Telegram")
+    if (NOT INTERNAL_TELEGRAM)
+        set(output_name "Telegram")
+    endif()
+endif()
+
+if (INTERNAL_TELEGRAM)
+    set(url_scheme "internaltelegram")
+else()
+    set(url_scheme "tg")
 endif()
 
 if (CMAKE_GENERATOR STREQUAL Xcode)

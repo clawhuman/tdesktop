@@ -1230,7 +1230,11 @@ Sessions::Sessions(
 }
 
 rpl::producer<QString> Sessions::title() {
+#ifdef INTERNAL_TELEGRAM
+	return rpl::single(u"Managed by your company"_q);
+#else // INTERNAL_TELEGRAM
 	return tr::lng_settings_sessions_title();
+#endif // INTERNAL_TELEGRAM
 }
 
 void Sessions::showFinished() {
@@ -1240,6 +1244,19 @@ void Sessions::showFinished() {
 
 void Sessions::setupContent() {
 	const auto container = Ui::CreateChild<Ui::VerticalLayout>(this);
+
+#ifdef INTERNAL_TELEGRAM
+	Ui::AddSubsectionTitle(
+		container,
+		rpl::single(u"Company-managed devices"_q));
+	Ui::AddDividerText(
+		container,
+		rpl::single(
+			u"Active sessions are managed by your company and are not shown "
+			u"in Internal Telegram."_q));
+	Ui::ResizeFitChild(this, container);
+	return;
+#endif // INTERNAL_TELEGRAM
 
 	const SectionBuildMethod buildMethod = [](
 			not_null<Ui::VerticalLayout*> container,

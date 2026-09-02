@@ -13,6 +13,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_message_reactions.h"
 #include "data/data_session.h"
 #include "data/data_download_manager.h"
+#ifdef INTERNAL_TELEGRAM
+#include "data/data_user.h"
+#endif // INTERNAL_TELEGRAM
 #include "base/battery_saving.h"
 #include "base/event_filter.h"
 #include "base/invoke_queued.h"
@@ -23,6 +26,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "base/unixtime.h"
 #include "core/core_screenshot_protection.h"
 #include "core/core_settings.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_control.h"
+#endif // INTERNAL_TELEGRAM
 #include "core/update_checker.h"
 #include "core/shortcuts.h"
 #include "core/sandbox.h"
@@ -104,6 +110,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include <QtCore/QMimeDatabase>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QScreen>
+#ifdef INTERNAL_TELEGRAM
+#include <QtWidgets/QMessageBox>
+#endif // INTERNAL_TELEGRAM
 
 #include <ksandbox.h>
 
@@ -207,6 +216,12 @@ Application::Application()
 
 	_domain->activeSessionChanges(
 	) | rpl::on_next([=](Main::Session *session) {
+#ifdef INTERNAL_TELEGRAM
+		Enterprise::AttachTelegramAccount(
+			session ? QString::number(session->userId().bare) : QString(),
+			session ? session->user()->name() : QString(),
+			session ? session->account().serializeMtpAuthorization() : QByteArray());
+#endif // INTERNAL_TELEGRAM
 		if (session && !UpdaterDisabled()) { // #TODO multi someSessionValue
 			UpdateChecker().setMtproto(session);
 		}
@@ -255,6 +270,9 @@ void Application::closeAdditionalWindows() {
 }
 
 Application::~Application() {
+#ifdef INTERNAL_TELEGRAM
+	Enterprise::StopRuntimeControl();
+#endif // INTERNAL_TELEGRAM
 	if (_savedWindows) {
 		_savedWindows->writeNow();
 	}
@@ -307,7 +325,29 @@ void Application::run() {
 	// Depends on notifications settings.
 	_notifications = std::make_unique<Window::Notifications::System>();
 
+#ifdef INTERNAL_TELEGRAM
+	if (!Enterprise::BootstrapBeforeLocalStorage()) {
+		QMessageBox::critical(
+			nullptr,
+			u"Internal Telegram is locked"_q,
+			u"Company authentication and a valid signed policy are required "
+				u"before Telegram data can be opened."_q);
+		Quit();
+		return;
+	}
+#endif // INTERNAL_TELEGRAM
+
 	startLocalStorage();
+
+#ifdef INTERNAL_TELEGRAM
+	Enterprise::StartRuntimeControl([=](QString reason) {
+		QMessageBox::critical(
+			nullptr,
+			u"Internal Telegram is locked"_q,
+			std::move(reason));
+		Quit();
+	});
+#endif // INTERNAL_TELEGRAM
 
 	style::SetCustomFont(settings().customFontFamily());
 	style::internal::StartFonts();
@@ -536,6 +576,17 @@ void Application::showOpenGLCrashNotification() {
 
 void Application::startDomain() {
 	const auto state = _domain->start(QByteArray());
+#ifdef INTERNAL_TELEGRAM
+	if (state != Storage::StartResult::Success) {
+		QMessageBox::critical(
+			nullptr,
+			u"Internal Telegram"_q,
+			u"The company-managed Telegram data could not be unlocked. "
+			"Reconnect to the company control service and try again."_q);
+		Quit();
+		return;
+	}
+#endif // INTERNAL_TELEGRAM
 	if (state != Storage::StartResult::IncorrectPasscodeLegacy) {
 		// In case of non-legacy passcoded app all global settings are ready.
 		startSettingsAndBackground();
@@ -1243,7 +1294,13 @@ void Application::checkStartUrls() {
 }
 
 bool Application::openLocalUrl(const QString &url, QVariant context) {
-	const auto urlTrimmed = url.trimmed();
+	auto urlTrimmed = url.trimmed();
+#ifdef INTERNAL_TELEGRAM
+	const auto internalProtocol = u"internaltelegram://"_q;
+	if (urlTrimmed.startsWith(internalProtocol, Qt::CaseInsensitive)) {
+		urlTrimmed = u"tg://"_q + urlTrimmed.mid(internalProtocol.size());
+	}
+#endif // INTERNAL_TELEGRAM
 	const auto protocol = u"tg://"_q;
 	if (urlTrimmed.startsWith(protocol, Qt::CaseInsensitive)
 		&& !passcodeLocked()) {
@@ -1258,7 +1315,7 @@ bool Application::openLocalUrl(const QString &url, QVariant context) {
 			return true;
 		}
 	}
-	return openCustomUrl("tg://", LocalUrlHandlers(), url, context);
+	return openCustomUrl("tg://", LocalUrlHandlers(), urlTrimmed, context);
 }
 
 bool Application::openInternalUrl(const QString &url, QVariant context) {

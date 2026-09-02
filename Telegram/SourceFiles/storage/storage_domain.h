@@ -56,10 +56,10 @@ private:
 	};
 
 	[[nodiscard]] StartModernResult startModern(const QByteArray &passcode);
-	void startWithSingleAccount(
-		const QByteArray &passcode,
+	[[nodiscard]] bool startWithSingleAccount(
+		[[maybe_unused]] const QByteArray &passcode,
 		std::unique_ptr<Main::Account> account);
-	void generateLocalKey();
+	[[nodiscard]] bool generateLocalKey();
 	void encryptLocalKey(const QByteArray &passcode);
 
 	const not_null<Main::Domain*> _owner;

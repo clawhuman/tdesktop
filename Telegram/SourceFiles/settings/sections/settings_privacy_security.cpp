@@ -1207,12 +1207,27 @@ PrivacySecurity::PrivacySecurity(
 }
 
 rpl::producer<QString> PrivacySecurity::title() {
+#ifdef INTERNAL_TELEGRAM
+	return rpl::single(u"Managed by your company"_q);
+#else // INTERNAL_TELEGRAM
 	return tr::lng_settings_section_privacy();
+#endif // INTERNAL_TELEGRAM
 }
 
 void PrivacySecurity::setupContent() {
 	const auto content = Ui::CreateChild<Ui::VerticalLayout>(this);
+#ifdef INTERNAL_TELEGRAM
+	Ui::AddSubsectionTitle(
+		content,
+		rpl::single(u"Company-managed settings"_q));
+	Ui::AddDividerText(
+		content,
+		rpl::single(
+			u"Privacy, security, and active-session settings are managed by "
+			u"your company. This page is read-only in Internal Telegram."_q));
+#else // INTERNAL_TELEGRAM
 	build(content, kPrivacySecuritySection);
+#endif // INTERNAL_TELEGRAM
 	Ui::ResizeFitChild(this, content);
 }
 

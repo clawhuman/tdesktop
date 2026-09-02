@@ -119,6 +119,24 @@ Router::DispatchResult Router::dispatch(const Context &ctx) {
 	if (ctx.section.isEmpty()) {
 		return { Result::NotFound };
 	}
+#ifdef INTERNAL_TELEGRAM
+	const auto managedSection = ctx.section.toLower();
+	const auto managedPath = ctx.path.toLower();
+	const auto managedSettings = (managedSection == u"settings"_q)
+		&& ((managedPath == u"devices"_q)
+			|| managedPath.startsWith(u"devices/"_q)
+			|| (managedPath == u"privacy"_q)
+			|| managedPath.startsWith(u"privacy/"_q));
+	if (managedSettings) {
+		const auto text = u"This setting is read-only and managed by your company."_q;
+		if (ctx.controller) {
+			ctx.controller->showToast(text);
+		} else if (const auto window = Core::App().activeWindow()) {
+			window->showToast(text);
+		}
+		return { Result::Handled };
+	}
+#endif // INTERNAL_TELEGRAM
 	return handleSection(ctx.section, ctx);
 }
 

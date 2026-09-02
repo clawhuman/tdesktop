@@ -5,7 +5,7 @@
 	<key>CFBundleExecutable</key>
 	<string>@output_name@</string>
 	<key>CFBundleGetInfoString</key>
-	<string>Telegram Desktop messaging app</string>
+	<string>@output_name@ messaging app</string>
 	<key>CFBundleIconFile</key>
 	<string>Icon.icns</string>
 	<key>CFBundleIconName</key>
@@ -37,7 +37,7 @@
 			<string>@bundle_identifier_plist@</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>tg</string>
+				<string>@url_scheme@</string>
 				<string>tonsite</string>
 			</array>
 		</dict>

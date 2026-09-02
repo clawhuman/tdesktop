@@ -58,6 +58,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_changes.h"
 #include "data/data_session.h"
 #include "data/data_message_reactions.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_archive.h"
+#endif // INTERNAL_TELEGRAM
 #include "data/data_folder.h"
 #include "data/data_forum.h"
 #include "data/data_forum_topic.h"
@@ -3015,6 +3018,11 @@ Storage::SharedMediaTypesMask HistoryItem::sharedMediaTypes() const {
 }
 
 void HistoryItem::indexAsNewItem() {
+#ifdef INTERNAL_TELEGRAM
+	if (Enterprise::ShouldHide(this)) {
+		return;
+	}
+#endif // INTERNAL_TELEGRAM
 	if (isRegular()) {
 		addToUnreadThings(HistoryUnreadThings::AddType::New);
 	}
@@ -3022,6 +3030,11 @@ void HistoryItem::indexAsNewItem() {
 }
 
 void HistoryItem::addToSharedMediaIndex() {
+#ifdef INTERNAL_TELEGRAM
+	if (Enterprise::ShouldHide(this)) {
+		return;
+	}
+#endif // INTERNAL_TELEGRAM
 	if (isRegular()) {
 		if (const auto types = sharedMediaTypes()) {
 			_history->session().storage().add(Storage::SharedMediaAddNew(
@@ -3058,6 +3071,11 @@ void HistoryItem::removeFromSharedMediaIndex() {
 }
 
 void HistoryItem::addToMessagesIndex() {
+#ifdef INTERNAL_TELEGRAM
+	if (Enterprise::ShouldHide(this)) {
+		return;
+	}
+#endif // INTERNAL_TELEGRAM
 	if (isRegular()) {
 		if (const auto messages = _history->maybeMessages()) {
 			messages->addNew(id);
@@ -4618,6 +4636,11 @@ void HistoryItem::highlightProcessDone() {
 }
 
 bool HistoryItem::showNotification() const {
+#ifdef INTERNAL_TELEGRAM
+	if (Enterprise::ShouldHide(this)) {
+		return false;
+	}
+#endif // INTERNAL_TELEGRAM
 	const auto channel = _history->peer->asChannel();
 	if (channel && !channel->amIn()) {
 		return false;

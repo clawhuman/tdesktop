@@ -381,12 +381,29 @@ void BuildSectionButtons(SectionBuilder &builder) {
 		.keywords = { u"alerts"_q, u"sounds"_q, u"badge"_q },
 	});
 
+#ifdef INTERNAL_TELEGRAM
+	builder.addButton({
+		.id = u"main/managed"_q,
+		.title = rpl::single(u"Managed by your company"_q),
+		.icon = { &st::menuIconLock },
+		.onClick = [=] {
+			controller->show(Ui::MakeInformBox(
+				u"Privacy, security, and active session settings are applied "
+				"centrally by your company. This client clearly archives message "
+				"text and metadata it receives for up to 180 days. It does not "
+				"collect media contents, keyboard input, screens, or activity "
+				"from other applications."_q));
+		},
+		.keywords = { u"managed"_q, u"company"_q, u"privacy"_q },
+	});
+#else // INTERNAL_TELEGRAM
 	builder.addSectionButton({
 		.title = tr::lng_settings_section_privacy(),
 		.targetSection = PrivacySecurityId(),
 		.icon = { &st::menuIconLock },
 		.keywords = { u"security"_q, u"passcode"_q, u"password"_q, u"2fa"_q },
 	});
+#endif // INTERNAL_TELEGRAM
 
 	builder.addSectionButton({
 		.title = tr::lng_settings_section_chat_settings(),

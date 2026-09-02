@@ -68,6 +68,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_message_reactions.h"
 #include "data/data_user.h"
 #include "lang/lang_keys.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_archive.h"
+#endif // INTERNAL_TELEGRAM
 #include "styles/style_chat.h"
 #include "styles/style_chat_style.h"
 #include "styles/style_dialogs.h"
@@ -1537,7 +1540,11 @@ bool Element::isHiddenByGroup() const {
 }
 
 bool Element::isHidden() const {
+#ifdef INTERNAL_TELEGRAM
+	return isHiddenByGroup() || Enterprise::ShouldHide(data());
+#else // INTERNAL_TELEGRAM
 	return isHiddenByGroup();
+#endif // INTERNAL_TELEGRAM
 }
 
 void Element::overrideMedia(std::unique_ptr<Media> media) {

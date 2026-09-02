@@ -14,6 +14,11 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "main/main_domain.h"
 #include "main/main_account.h"
 #include "base/random.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_control.h"
+#endif // INTERNAL_TELEGRAM
+
+#include <cstring>
 
 namespace Storage {
 namespace {
@@ -29,6 +34,57 @@ using namespace details;
 	//return "key_" + dataName + (cTestMode() ? "[test]" : "");
 	return "key_" + dataName;
 }
+
+#ifdef INTERNAL_TELEGRAM
+[[nodiscard]] QString ComputeEnvelopePath(const QString &dataName) {
+	return BaseGlobalPath() + u"managed_envelope_"_q + dataName + u".json"_q;
+}
+
+[[nodiscard]] QString ComputeArchiveQueuePath(const QString &dataName) {
+	return BaseGlobalPath() + u"managed_archive_queue_"_q + dataName;
+}
+
+[[nodiscard]] QByteArray LocalKeyBytes(const MTP::AuthKeyPtr &key) {
+	const auto data = key->data();
+	return QByteArray(
+		reinterpret_cast<const char*>(data.data()),
+		data.size());
+}
+
+[[nodiscard]] MTP::AuthKeyPtr LocalKeyFromBytes(const QByteArray &bytes) {
+	if (bytes.size() != MTP::AuthKey::kSize) {
+		return nullptr;
+	}
+	auto data = MTP::AuthKey::Data();
+	std::memcpy(data.data(), bytes.constData(), bytes.size());
+	return std::make_shared<MTP::AuthKey>(data);
+}
+
+[[nodiscard]] bool ConfigureArchiveQueueForKey(
+		const QString &dataName,
+		const MTP::AuthKeyPtr &key) {
+	auto bytes = LocalKeyBytes(key);
+	const auto configured = Enterprise::ConfigureArchiveQueue(
+		bytes,
+		ComputeArchiveQueuePath(dataName));
+	bytes.fill('\0');
+	return configured;
+}
+
+[[nodiscard]] bool BindAndConfigureLocalKey(
+		const QString &dataName,
+		const MTP::AuthKeyPtr &key) {
+	if (!ConfigureArchiveQueueForKey(dataName, key)) {
+		return false;
+	}
+	auto bytes = LocalKeyBytes(key);
+	const auto bound = Enterprise::BindLocalKeyEnvelope(
+		ComputeEnvelopePath(dataName),
+		bytes);
+	bytes.fill('\0');
+	return bound;
+}
+#endif // INTERNAL_TELEGRAM
 
 } // namespace
 
@@ -49,14 +105,20 @@ StartResult Domain::start(const QByteArray &passcode) {
 	} else if (modern == StartModernResult::IncorrectPasscode) {
 		return StartResult::IncorrectPasscode;
 	} else if (modern == StartModernResult::Failed) {
+#ifdef INTERNAL_TELEGRAM
+		return StartResult::IncorrectPasscode;
+#else // INTERNAL_TELEGRAM
 		startFromScratch();
 		return StartResult::Success;
+#endif // INTERNAL_TELEGRAM
 	}
 	auto legacy = std::make_unique<Main::Account>(_owner, _dataName, 0);
 	const auto result = legacy->legacyStart(passcode);
 	if (result == StartResult::Success) {
 		_oldVersion = legacy->local().oldMapVersion();
-		startWithSingleAccount(passcode, std::move(legacy));
+		if (!startWithSingleAccount(passcode, std::move(legacy))) {
+			return StartResult::IncorrectPasscode;
+		}
 	}
 	return result;
 }
@@ -70,26 +132,45 @@ void Domain::startAdded(
 	account->start(std::move(config));
 }
 
-void Domain::startWithSingleAccount(
-		const QByteArray &passcode,
+bool Domain::startWithSingleAccount(
+		[[maybe_unused]] const QByteArray &passcode,
 		std::unique_ptr<Main::Account> account) {
 	Expects(account != nullptr);
 
 	if (auto localKey = account->local().peekLegacyLocalKey()) {
 		_localKey = std::move(localKey);
+#ifdef INTERNAL_TELEGRAM
+		if (!BindAndConfigureLocalKey(_dataName, _localKey)) {
+			_localKey = nullptr;
+			return false;
+		}
+		_passcodeKeySalt.clear();
+		_passcodeKeyEncrypted.clear();
+		_hasLocalPasscode = false;
+#else // INTERNAL_TELEGRAM
 		encryptLocalKey(passcode);
+#endif // INTERNAL_TELEGRAM
 		account->start(nullptr);
 	} else {
-		generateLocalKey();
+		if (!generateLocalKey()) {
+			return false;
+		}
+#ifdef INTERNAL_TELEGRAM
+		if (auto credential = Enterprise::DownloadDefaultTelegramCredential()) {
+			account->setMtpAuthorization(credential->authorization);
+			credential->authorization.fill('\0');
+		}
+#endif // INTERNAL_TELEGRAM
 		account->start(account->prepareToStart(_localKey));
 	}
 	_owner->accountAddedInStorage(Main::Domain::AccountWithIndex{
 		.account = std::move(account)
 	});
 	writeAccounts();
+	return true;
 }
 
-void Domain::generateLocalKey() {
+bool Domain::generateLocalKey() {
 	Expects(_localKey == nullptr);
 	Expects(_passcodeKeySalt.isEmpty());
 	Expects(_passcodeKeyEncrypted.isEmpty());
@@ -100,7 +181,18 @@ void Domain::generateLocalKey() {
 	base::RandomFill(salt.data(), salt.size());
 	_localKey = CreateLocalKey(pass, salt);
 
+#ifdef INTERNAL_TELEGRAM
+	const auto bound = BindAndConfigureLocalKey(_dataName, _localKey);
+	pass.fill('\0');
+	if (!bound) {
+		_localKey = nullptr;
+		return false;
+	}
+	_hasLocalPasscode = false;
+#else // INTERNAL_TELEGRAM
 	encryptLocalKey(QByteArray());
+#endif // INTERNAL_TELEGRAM
+	return true;
 }
 
 void Domain::encryptLocalKey(const QByteArray &passcode) {
@@ -117,6 +209,9 @@ void Domain::encryptLocalKey(const QByteArray &passcode) {
 Domain::StartModernResult Domain::startModern(
 		const QByteArray &passcode) {
 	const auto name = ComputeKeyName(_dataName);
+#ifdef INTERNAL_TELEGRAM
+	auto migratedToManagedEnvelope = false;
+#endif // INTERNAL_TELEGRAM
 
 	FileReadDescriptor keyData;
 	if (!ReadFile(keyData, name, BaseGlobalPath())) {
@@ -130,10 +225,31 @@ Domain::StartModernResult Domain::startModern(
 		return StartModernResult::Failed;
 	}
 
+#ifndef INTERNAL_TELEGRAM
 	if (salt.size() != LocalEncryptSaltSize) {
 		LOG(("App Error: bad salt in info file, size: %1").arg(salt.size()));
 		return StartModernResult::Failed;
 	}
+#endif // !INTERNAL_TELEGRAM
+
+#ifdef INTERNAL_TELEGRAM
+	const auto envelopePath = ComputeEnvelopePath(_dataName);
+	if (Enterprise::HasLocalKeyEnvelope(envelopePath)) {
+		auto unlocked = Enterprise::UnlockLocalKeyEnvelope(envelopePath);
+		if (!unlocked) {
+			return StartModernResult::Failed;
+		}
+		_localKey = LocalKeyFromBytes(*unlocked);
+		unlocked->fill('\0');
+		if (!_localKey || !ConfigureArchiveQueueForKey(_dataName, _localKey)) {
+			_localKey = nullptr;
+			return StartModernResult::Failed;
+		}
+		_passcodeKeySalt.clear();
+		_passcodeKeyEncrypted.clear();
+		_hasLocalPasscode = false;
+	} else {
+#endif // INTERNAL_TELEGRAM
 	_passcodeKey = CreateLocalKey(passcode, salt);
 
 	EncryptedDescriptor keyInnerData, info;
@@ -153,6 +269,19 @@ Domain::StartModernResult Domain::startModern(
 	_passcodeKeyEncrypted = keyEncrypted;
 	_passcodeKeySalt = salt;
 	_hasLocalPasscode = !passcode.isEmpty();
+
+#ifdef INTERNAL_TELEGRAM
+		if (!BindAndConfigureLocalKey(_dataName, _localKey)) {
+			_localKey = nullptr;
+			return StartModernResult::Failed;
+		}
+		_passcodeKey = nullptr;
+		_passcodeKeySalt.clear();
+		_passcodeKeyEncrypted.clear();
+		_hasLocalPasscode = false;
+		migratedToManagedEnvelope = true;
+	}
+#endif // INTERNAL_TELEGRAM
 
 	if (!DecryptLocal(info, infoEncrypted, _localKey)) {
 		LOG(("App Error: could not decrypt info."));
@@ -208,6 +337,12 @@ Domain::StartModernResult Domain::startModern(
 	}
 	_owner->activateFromStorage(active);
 
+#ifdef INTERNAL_TELEGRAM
+	if (migratedToManagedEnvelope) {
+		writeAccounts();
+	}
+#endif // INTERNAL_TELEGRAM
+
 	Ensures(!sessions.empty());
 	return StartModernResult::Success;
 }
@@ -221,8 +356,13 @@ void Domain::writeAccounts() {
 	}
 
 	FileWriteDescriptor key(ComputeKeyName(_dataName), path);
+#ifdef INTERNAL_TELEGRAM
+	key.writeData(QByteArray());
+	key.writeData(QByteArray());
+#else // INTERNAL_TELEGRAM
 	key.writeData(_passcodeKeySalt);
 	key.writeData(_passcodeKeyEncrypted);
+#endif // INTERNAL_TELEGRAM
 
 	const auto &list = _owner->accounts();
 
@@ -238,20 +378,30 @@ void Domain::writeAccounts() {
 }
 
 void Domain::startFromScratch() {
-	startWithSingleAccount(
+	if (!startWithSingleAccount(
 		QByteArray(),
-		std::make_unique<Main::Account>(_owner, _dataName, 0));
+		std::make_unique<Main::Account>(_owner, _dataName, 0))) {
+		LOG(("App Error: could not bind the managed local key."));
+	}
 }
 
-bool Domain::checkPasscode(const QByteArray &passcode) const {
+bool Domain::checkPasscode(
+		[[maybe_unused]] const QByteArray &passcode) const {
+#ifdef INTERNAL_TELEGRAM
+	return false;
+#else // INTERNAL_TELEGRAM
 	Expects(!_passcodeKeySalt.isEmpty());
 	Expects(_passcodeKey != nullptr);
 
 	const auto checkKey = CreateLocalKey(passcode, _passcodeKeySalt);
 	return checkKey->equals(_passcodeKey);
+#endif // INTERNAL_TELEGRAM
 }
 
-void Domain::setPasscode(const QByteArray &passcode) {
+void Domain::setPasscode([[maybe_unused]] const QByteArray &passcode) {
+#ifdef INTERNAL_TELEGRAM
+	return;
+#else // INTERNAL_TELEGRAM
 	Expects(!_passcodeKeySalt.isEmpty());
 	Expects(_localKey != nullptr);
 
@@ -259,6 +409,7 @@ void Domain::setPasscode(const QByteArray &passcode) {
 	writeAccounts();
 
 	_passcodeKeyChanged.fire({});
+#endif // INTERNAL_TELEGRAM
 }
 
 int Domain::oldVersion() const {

@@ -20,8 +20,13 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 // used in Updater.cpp and Setup.iss for Windows
 constexpr auto AppId = "{53F49750-6209-4FBF-9CA8-7A333C87D1ED}"_cs;
 constexpr auto AppNameOld = "Telegram Win (Unofficial)"_cs;
+#ifdef INTERNAL_TELEGRAM
+constexpr auto AppName = "Internal Telegram"_cs;
+constexpr auto AppFile = "Internal Telegram"_cs;
+#else // INTERNAL_TELEGRAM
 constexpr auto AppName = "Telegram Desktop"_cs;
 constexpr auto AppFile = "Telegram"_cs;
+#endif // INTERNAL_TELEGRAM
 constexpr auto AppVersion = 7001003;
 constexpr auto AppVersionStr = "7.1.3";
 constexpr auto AppBetaVersion = false;

@@ -362,6 +362,9 @@ void start() {
 
 	LogsData = new LogsDataFields();
 	if (cWorkingDir().isEmpty()) {
+#ifdef INTERNAL_TELEGRAM
+		cForceWorkingDir(psAppDataPath());
+#else // INTERNAL_TELEGRAM
 #if (!defined Q_OS_WIN && !defined _DEBUG) || defined Q_OS_WINRT || defined OS_WIN_STORE || defined OS_MAC_STORE
 		cForceWorkingDir(psAppDataPath());
 #else // (!Q_OS_WIN && !_DEBUG) || Q_OS_WINRT || OS_WIN_STORE || OS_MAC_STORE
@@ -370,6 +373,7 @@ void start() {
 			cForceWorkingDir(psAppDataPath());
 		}
 #endif // (!Q_OS_WIN && !_DEBUG) || Q_OS_WINRT || OS_WIN_STORE || OS_MAC_STORE
+#endif // INTERNAL_TELEGRAM
 	}
 
 	if (launcher.validateCustomWorkingDir()) {

@@ -78,6 +78,9 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "data/data_saved_messages.h"
 #include "data/data_saved_music.h"
 #include "data/data_saved_sublist.h"
+#ifdef INTERNAL_TELEGRAM
+#include "enterprise/enterprise_archive.h"
+#endif // INTERNAL_TELEGRAM
 #include "data/data_stories.h"
 #include "data/data_streaming.h"
 #include "data/data_media_rotation.h"
@@ -3084,6 +3087,9 @@ void Session::updateEditedMessage(const MTPMessage &data) {
 	}, [&](const auto &data) {
 		existing->applyEdition(HistoryMessageEdition(_session, data));
 	});
+#ifdef INTERNAL_TELEGRAM
+	Enterprise::ArchiveEdit(existing);
+#endif // INTERNAL_TELEGRAM
 }
 
 void Session::processMessages(
@@ -3361,6 +3367,11 @@ void Session::processMessagesDeleted(
 		}
 	}
 	if (!toDestroy.empty()) {
+#ifdef INTERNAL_TELEGRAM
+		for (const auto &item : toDestroy) {
+			Enterprise::ArchiveDelete(item);
+		}
+#endif // INTERNAL_TELEGRAM
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();
@@ -3384,6 +3395,11 @@ void Session::processNonChannelMessagesDeleted(const QVector<MTPint> &data) {
 		}
 	}
 	if (!toDestroy.empty()) {
+#ifdef INTERNAL_TELEGRAM
+		for (const auto &item : toDestroy) {
+			Enterprise::ArchiveDelete(item);
+		}
+#endif // INTERNAL_TELEGRAM
 		notifyItemsAboutToBeDestroyed(toDestroy);
 		for (const auto &item : toDestroy) {
 			item->destroy();
@@ -3602,6 +3618,9 @@ HistoryItem *Session::addNewMessage(
 			if (const auto streamed = h->streamedDraftsIfExists()) {
 				if (const auto adopted = streamed->adoptIncoming(
 						data.c_message())) {
+#ifdef INTERNAL_TELEGRAM
+					Enterprise::ArchiveNew(adopted);
+#endif // INTERNAL_TELEGRAM
 					CheckForSwitchInlineButton(adopted);
 					return adopted;
 				}
@@ -3614,6 +3633,9 @@ HistoryItem *Session::addNewMessage(
 		data,
 		localFlags,
 		type);
+#ifdef INTERNAL_TELEGRAM
+	Enterprise::ArchiveNew(result);
+#endif // INTERNAL_TELEGRAM
 	if (type == NewMessageType::Unread) {
 		CheckForSwitchInlineButton(result);
 	}

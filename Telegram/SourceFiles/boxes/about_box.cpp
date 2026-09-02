@@ -43,6 +43,13 @@ rpl::producer<TextWithEntities> Text1() {
 }
 
 rpl::producer<TextWithEntities> Text2() {
+	const auto sourceUrl = QString::fromUtf8(
+#ifdef INTERNAL_TELEGRAM
+		INTERNAL_TELEGRAM_SOURCE_URL
+#else // INTERNAL_TELEGRAM
+		"https://github.com/telegramdesktop/tdesktop"
+#endif // INTERNAL_TELEGRAM
+	);
 	return tr::lng_about_text2(
 		lt_gpl_link,
 		rpl::single(tr::link(
@@ -51,9 +58,20 @@ rpl::producer<TextWithEntities> Text2() {
 		lt_github_link,
 		rpl::single(tr::link(
 			"GitHub",
-			"https://github.com/telegramdesktop/tdesktop")),
+			sourceUrl)),
 		tr::marked);
 }
+
+#ifdef INTERNAL_TELEGRAM
+rpl::producer<TextWithEntities> ManagedText() {
+	return rpl::single(TextWithEntities{
+		.text = u"This modified GPLv3 build is managed by your company. "
+			"Message text and metadata received by this client may be "
+			"archived for 180 days. Media contents, keyboard input, screens, "
+			"and other application activity are not collected."_q,
+	});
+}
+#endif // INTERNAL_TELEGRAM
 
 rpl::producer<TextWithEntities> Text3() {
 	return tr::lng_about_text3(
@@ -65,7 +83,12 @@ rpl::producer<TextWithEntities> Text3() {
 } // namespace
 
 void AboutBox(not_null<Ui::GenericBox*> box) {
+
+#ifdef INTERNAL_TELEGRAM
+	box->setTitle(u"Internal Telegram"_q);
+#else // INTERNAL_TELEGRAM
 	box->setTitle(u"Telegram Desktop"_q);
+#endif // INTERNAL_TELEGRAM
 
 	auto layout = box->verticalLayout();
 
@@ -126,6 +149,9 @@ void AboutBox(not_null<Ui::GenericBox*> box) {
 
 	addText(Text1());
 	addText(Text2());
+#ifdef INTERNAL_TELEGRAM
+	addText(ManagedText());
+#endif // INTERNAL_TELEGRAM
 	addText(Text3());
 
 	box->addButton(tr::lng_close(), [=] { box->closeBox(); });
@@ -331,4 +357,3 @@ void ArchiveHintBox(
 		box->addButton(std::move(button));
 	}
 }
-
