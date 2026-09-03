@@ -424,7 +424,7 @@ TopBar::TopBar(
 	owned->setText(Info::Profile::NameValue(
 		_peer
 	) | rpl::map([=](const QString &name) {
-		return TextWithEntities(name)
+		return TextWithEntities{ name }
 			.append(' ')
 			.append(Ui::Text::IconEmoji(&st::textMoreIconEmoji, QString()));
 	}));
