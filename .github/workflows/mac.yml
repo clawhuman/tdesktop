@@ -74,7 +74,22 @@ jobs:
       - name: Free runner disk space
         run: |
           df -h .
-          find Libraries '(' '(' ! '(' -name '*.a' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -perm +111 ')' -type f ')' -o -empty ')' -delete
+          rm -rf ThirdParty
+          for path in Libraries/*; do
+            case "$(basename "$path")" in
+              local|tg_owt|openssl3|ffmpeg|regex|rnnoise|tde2e) ;;
+              *) rm -rf "$path" ;;
+            esac
+          done
+          find Libraries -type d -name .git -prune -exec rm -rf {} +
+          rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/*
+          sudo rm -rf "$HOME/Library/Developer/CoreSimulator/Devices"
+          for xcode in /Applications/Xcode_*.app; do
+            if [ -e "$xcode" ] && [ "$xcode" != "/Applications/Xcode.app" ]; then
+              sudo rm -rf "$xcode"
+            fi
+          done
           brew cleanup -s || true
           df -h .
 
@@ -91,6 +106,7 @@ jobs:
         run: |
           ./configure.sh \
             -D CMAKE_CONFIGURATION_TYPES=Debug \
+            -D CMAKE_OSX_ARCHITECTURES=arm64 \
             -D CMAKE_COMPILE_WARNING_AS_ERROR=ON \
             -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
             -D TDESKTOP_API_ID="$API_ID" \
@@ -105,7 +121,7 @@ jobs:
             -D DESKTOP_APP_DISABLE_SWIFT6=ON \
             -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
             -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
-          cmake --build ../out --config Debug --parallel
+          cmake --build ../out --config Debug --parallel 2
 
       - name: Ad-hoc sign and package
         run: |
