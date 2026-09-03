@@ -2280,7 +2280,7 @@ elseif (APPLE)
         target_link_libraries(Telegram PRIVATE desktop-app::external_iconv)
     endif()
 
-    target_link_frameworks(Telegram PRIVATE CoreBluetooth)
+	target_link_frameworks_weak(Telegram PRIVATE CoreBluetooth)
     target_link_frameworks_weak(Telegram PRIVATE UserNotifications)
 
     set(icons_path ${CMAKE_CURRENT_SOURCE_DIR}/Telegram/Images.xcassets)
