@@ -25,7 +25,7 @@ constexpr auto kQueueAad = std::string_view("internal-telegram/archive-queue/v1"
 	const auto context = QByteArray(kQueueAad.data(), kQueueAad.size());
 	const auto digest = EVP_MD_CTX_new();
 	auto result = QByteArray(32, Qt::Uninitialized);
-	auto size = unsigned int();
+	auto size = 0u;
 	const auto valid = digest
 		&& EVP_DigestInit_ex(digest, EVP_sha256(), nullptr) == 1
 		&& EVP_DigestUpdate(digest, context.constData(), context.size()) == 1
