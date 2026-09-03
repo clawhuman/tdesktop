@@ -232,6 +232,7 @@ Domain::StartModernResult Domain::startModern(
 	}
 #endif // !INTERNAL_TELEGRAM
 
+	EncryptedDescriptor info;
 #ifdef INTERNAL_TELEGRAM
 	const auto envelopePath = ComputeEnvelopePath(_dataName);
 	if (Enterprise::HasLocalKeyEnvelope(envelopePath)) {
@@ -252,7 +253,7 @@ Domain::StartModernResult Domain::startModern(
 #endif // INTERNAL_TELEGRAM
 	_passcodeKey = CreateLocalKey(passcode, salt);
 
-	EncryptedDescriptor keyInnerData, info;
+	EncryptedDescriptor keyInnerData;
 	if (!DecryptLocal(keyInnerData, keyEncrypted, _passcodeKey)) {
 		LOG(("App Info: could not decrypt pass-protected key from info file, "
 			"maybe bad password..."));
