@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  actions: write
 
 concurrency:
   group: internal-telegram-macos-${{ github.ref }}
@@ -48,18 +49,27 @@ jobs:
           sudo mdutil -a -i off
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
-      - name: Cache libraries
-        uses: actions/cache@v6
+      - name: Restore libraries cache
+        id: libraries-cache
+        uses: actions/cache/restore@v6
         with:
           path: |
             Libraries
             ThirdParty
           key: internal-macos-arm64-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
           restore-keys: internal-macos-arm64-
-          save-always: true
 
       - name: Prepare libraries
         run: ./tdesktop/Telegram/build/prepare/mac.sh skip-release silent
+
+      - name: Save libraries cache
+        if: steps.libraries-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            Libraries
+            ThirdParty
+          key: internal-macos-arm64-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
 
       - name: Free runner disk space
         run: |
