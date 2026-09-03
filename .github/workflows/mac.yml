@@ -84,6 +84,7 @@ jobs:
             -D INTERNAL_TELEGRAM_POLICY_PUBLIC_KEY="$POLICY_KEY" \
             -D INTERNAL_TELEGRAM_CA_CERTIFICATE="$CA_CERTIFICATE" \
             -D INTERNAL_TELEGRAM_SOURCE_URL="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}" \
+            -D DESKTOP_APP_DISABLE_SWIFT6=ON \
             -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
             -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
           cmake --build ../out --config Debug --parallel
