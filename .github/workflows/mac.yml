@@ -85,8 +85,10 @@ jobs:
           rm -rf "$HOME/Library/Developer/Xcode/DerivedData"
           sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/*
           sudo rm -rf "$HOME/Library/Developer/CoreSimulator/Devices"
+          active_xcode="$(xcode-select -p | sed 's#/Contents/Developer$##')"
           for xcode in /Applications/Xcode_*.app; do
-            if [ -e "$xcode" ] && [ "$xcode" != "/Applications/Xcode.app" ]; then
+            if [ -e "$xcode" ] \
+              && [ "$(realpath "$xcode")" != "$(realpath "$active_xcode")" ]; then
               sudo rm -rf "$xcode"
             fi
           done
