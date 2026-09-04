@@ -1,4 +1,4 @@
-name: Internal Telegram macOS arm64
+name: Internal Telegram macOS arm64 Release
 
 on:
   workflow_dispatch:
@@ -45,7 +45,7 @@ jobs:
         run: |
           sudo chown -R "$(whoami)":admin /usr/local/share
           brew update
-          brew install automake libtool meson nasm ninja pkg-config
+          brew install automake bzip2 libtool meson nasm ninja pkg-config
           sudo mdutil -a -i off
           sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
 
@@ -95,7 +95,7 @@ jobs:
           brew cleanup -s || true
           df -h .
 
-      - name: Build Debug application
+      - name: Build Release application
         working-directory: tdesktop/Telegram
         env:
           API_ID: ${{ secrets.TELEGRAM_API_ID }}
@@ -107,7 +107,7 @@ jobs:
           CA_CERTIFICATE: ${{ vars.INTERNAL_CA_CERTIFICATE }}
         run: |
           ./configure.sh \
-            -D CMAKE_CONFIGURATION_TYPES=Debug \
+            -D CMAKE_CONFIGURATION_TYPES=Release \
             -D CMAKE_OSX_ARCHITECTURES=arm64 \
             -D CMAKE_COMPILE_WARNING_AS_ERROR=ON \
             -D CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
@@ -123,14 +123,23 @@ jobs:
             -D DESKTOP_APP_DISABLE_SWIFT6=ON \
             -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
             -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
-          cmake --build ../out --config Debug --parallel 2
+          cmake --build ../out --config Release --parallel 2
 
       - name: Ad-hoc sign and package
         run: |
-          app="tdesktop/out/Debug/Internal Telegram.app"
+          app="tdesktop/out/Release/Internal Telegram.app"
           test -d "$app"
+          frameworks="$app/Contents/Frameworks"
+          mkdir -p "$frameworks"
+          bzip2_library="$(brew --prefix bzip2)/lib/libbz2.1.0.dylib"
+          test -f "$bzip2_library"
+          cp "$bzip2_library" "$frameworks/libbz2.1.0.dylib"
+          install_name_tool -id @rpath/libbz2.1.0.dylib "$frameworks/libbz2.1.0.dylib"
+          install_name_tool -change /usr/lib/libbz2.1.0.dylib @rpath/libbz2.1.0.dylib "$app/Contents/MacOS/Internal Telegram"
+          install_name_tool -add_rpath @loader_path/../Frameworks "$app/Contents/MacOS/Internal Telegram"
           codesign --force --deep --sign - "$app"
           codesign --verify --deep --strict "$app"
+          otool -L "$app/Contents/MacOS/Internal Telegram" | grep -F '@rpath/libbz2.1.0.dylib'
           mkdir artifact
           short_sha="${GITHUB_SHA:0:12}"
           archive="artifact/Internal-Telegram-macos-arm64-${short_sha}.zip"
