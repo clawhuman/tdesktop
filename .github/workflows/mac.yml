@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-26-arm64
     timeout-minutes: 180
     env:
       PREPARE_PATH: Telegram/build/prepare/prepare.py
@@ -122,24 +122,41 @@ jobs:
             -D INTERNAL_TELEGRAM_SOURCE_URL="${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}" \
             -D DESKTOP_APP_DISABLE_SWIFT6=ON \
             -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON \
-            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
+            -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON \
+            -D CMAKE_XCODE_ATTRIBUTE_GCC_GENERATE_DEBUGGING_SYMBOLS=NO \
+            -D CMAKE_XCODE_ATTRIBUTE_STRIP_INSTALLED_PRODUCT=YES
           cmake --build ../out --config Release --parallel 2
 
       - name: Ad-hoc sign and package
         run: |
           app="tdesktop/out/Release/Internal Telegram.app"
           test -d "$app"
-          frameworks="$app/Contents/Frameworks"
-          mkdir -p "$frameworks"
-          bzip2_library="$(brew --prefix bzip2)/lib/libbz2.1.0.dylib"
-          test -f "$bzip2_library"
-          cp "$bzip2_library" "$frameworks/libbz2.1.0.dylib"
-          install_name_tool -id @rpath/libbz2.1.0.dylib "$frameworks/libbz2.1.0.dylib"
-          install_name_tool -change /usr/lib/libbz2.1.0.dylib @rpath/libbz2.1.0.dylib "$app/Contents/MacOS/Internal Telegram"
-          install_name_tool -add_rpath @loader_path/../Frameworks "$app/Contents/MacOS/Internal Telegram"
+          if otool -L "$app/Contents/MacOS/Internal Telegram" | grep -Fq '/usr/lib/libbz2.1.0.dylib'; then
+            frameworks="$app/Contents/Frameworks"
+            mkdir -p "$frameworks"
+            bzip2_archive="$(brew --prefix bzip2)/lib/libbz2.a"
+            test -f "$bzip2_archive"
+            clang -dynamiclib -arch arm64 \
+              -Wl,-install_name,@rpath/libbz2.1.0.dylib \
+              -Wl,-compatibility_version,1.0 \
+              -Wl,-current_version,1.0.8 \
+              -o "$frameworks/libbz2.1.0.dylib" "$bzip2_archive"
+            install_name_tool -change /usr/lib/libbz2.1.0.dylib @rpath/libbz2.1.0.dylib "$app/Contents/MacOS/Internal Telegram"
+            install_name_tool -add_rpath @loader_path/../Frameworks "$app/Contents/MacOS/Internal Telegram"
+          fi
+          for binary in \
+            "$app/Contents/MacOS/Internal Telegram" \
+            "$app/Contents/Frameworks/Updater" \
+            "$app/Contents/Helpers/crashpad_handler"; do
+            if [ -f "$binary" ]; then
+              strip "$binary"
+            fi
+          done
           codesign --force --deep --sign - "$app"
           codesign --verify --deep --strict "$app"
-          otool -L "$app/Contents/MacOS/Internal Telegram" | grep -F '@rpath/libbz2.1.0.dylib'
+          if otool -L "$app/Contents/MacOS/Internal Telegram" | grep -Fq '@rpath/libbz2.1.0.dylib'; then
+            test -f "$app/Contents/Frameworks/libbz2.1.0.dylib"
+          fi
           mkdir artifact
           short_sha="${GITHUB_SHA:0:12}"
           archive="artifact/Internal-Telegram-macos-arm64-${short_sha}.zip"
