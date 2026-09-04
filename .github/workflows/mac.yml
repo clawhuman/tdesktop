@@ -56,8 +56,10 @@ jobs:
           path: |
             Libraries
             ThirdParty
-          key: internal-macos-arm64-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
-          restore-keys: internal-macos-arm64-
+          key: internal-macos-arm64-release-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
+          restore-keys: |
+            internal-macos-arm64-release-
+            internal-macos-arm64-
 
       - name: Prepare libraries
         run: ./tdesktop/Telegram/build/prepare/mac.sh silent
@@ -69,7 +71,7 @@ jobs:
           path: |
             Libraries
             ThirdParty
-          key: internal-macos-arm64-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
+          key: internal-macos-arm64-release-${{ hashFiles('tdesktop/Telegram/build/prepare/prepare.py') }}
 
       - name: Free runner disk space
         run: |
