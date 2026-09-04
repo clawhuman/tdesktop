@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-26-arm64
+    runs-on: macos-26
     timeout-minutes: 180
     env:
       PREPARE_PATH: Telegram/build/prepare/prepare.py
