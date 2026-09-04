@@ -60,7 +60,7 @@ jobs:
           restore-keys: internal-macos-arm64-
 
       - name: Prepare libraries
-        run: ./tdesktop/Telegram/build/prepare/mac.sh skip-release silent
+        run: ./tdesktop/Telegram/build/prepare/mac.sh silent
 
       - name: Save libraries cache
         if: steps.libraries-cache.outputs.cache-hit != 'true'
