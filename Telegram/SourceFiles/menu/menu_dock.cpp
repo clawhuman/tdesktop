@@ -24,7 +24,9 @@ namespace Menu {
 
 void RefreshDockMenu(QMenu *menu) {
 	menu->clear();
-	if (!Core::IsAppLaunched()) {
+	if (!Core::IsAppLaunched()
+		|| Core::Quitting()
+		|| !Core::App().domain().started()) {
 		return;
 	}
 
