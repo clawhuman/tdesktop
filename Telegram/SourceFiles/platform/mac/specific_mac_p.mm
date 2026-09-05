@@ -236,7 +236,9 @@ void objc_start() {
 		selector: @selector(receiveWakeNote:)
 		name: NSWorkspaceDidWakeNotification object: NULL];
 
+#ifndef INTERNAL_TELEGRAM
 	crl::on_main([=] { SetupDockMenu(); });
+#endif // !INTERNAL_TELEGRAM
 }
 
 void objc_ignoreApplicationActivationRightNow() {
